@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# Run tests and report coverage.
+
+set -e
+
+opts=(-vv
+      --cov=mime_streamer
+      --cov-report=term-missing)
+
+# Tests to run can be specified explicitly or all tests are run:
+if [[ $# -eq 0 ]]; then
+  opts+=(tests/)
+else
+  opts+=("$@")
+fi
+
+pytest "${opts[@]}"
