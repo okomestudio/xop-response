@@ -34,12 +34,12 @@ class IterableContent(object):
         if self._eof_seen:
             raise StopIteration
         if self._pos >= len(self._buff) - 1:
-            l = next(self._obj._iter_lines)
+            l = next(self._obj._ilines)
             log.debug('%r read: %s%s',
                       self, l[:50], '...' if len(l) > 50 else '')
             if self._is_boundary(l):
                 log.debug('%r detected boundary', self)
-                self._obj._iter_lines = chain([l], self._obj._iter_lines)
+                self._obj._ilines = chain([l], self._obj._ilines)
                 self._eof_seen = True
                 raise StopIteration
             self._buff = l + self._obj._newline
@@ -71,7 +71,16 @@ class MultipartRelatedStreamer(object):
 
     def __init__(self, iter_lines, boundary, newline='\r\n'):
         self._newline = newline
-        self._ilines = iter_lines
+
+        def it(s):
+            for i in s:
+                if i.endswith('\r\n'):
+                    i = i.replace('\r\n', '')
+                elif i.endswith('\n'):
+                    i = i.replace('\n', '')
+                yield i
+
+        self._ilines = it(iter_lines)
 
         #ct = self.headers['content-type']
         #if not ct.startswith('multipart/related;'):
