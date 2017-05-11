@@ -1,47 +1,50 @@
+# -*- coding: utf-8 -*-
+import logging
+from pkg_resources import resource_string
+from StringIO import StringIO
+
+import mock
 import pytest
+import requests
 
-from mime_related_streamer.mp_related_streamer import MultipartRelatedStreamer
-
-
-content = '''Content-Type: Multipart/Related; boundary=example-1
-        start="<950120.aaCC@XIson.com>";
-        type="Application/X-FixedRecord"
-        start-info="-o ps"
-
---example-1
-Content-Type: Application/X-FixedRecord
-Content-ID: <950120.aaCC@XIson.com>
-
-25
-10
-34
-10
-25
-21
-26
-10
---example-1
-Content-Type: Application/octet-stream
-Content-Description: The fixed length records
-Content-Transfer-Encoding: base64
-Content-ID: <950120.aaCB@XIson.com>
-
-T2xkIE1hY0RvbmFsZCBoYWQgYSBmYXJtCkUgSS
-BFIEkgTwpBbmQgb24gaGlzIGZhcm0gaGUgaGFk
-IHNvbWUgZHVja3MKRSBJIEUgSSBPCldpdGggYS
-BxdWFjayBxdWFjayBoZXJlLAphIHF1YWNrIHF1
-YWNrIHRoZXJlLApldmVyeSB3aGVyZSBhIHF1YW
-NrIHF1YWNrCkUgSSBFIEkgTwo=
-
---example-1--
-'''.replace('\n', '\r\n')
+from mime_related_streamer.multipart_related_streamer \
+    import MultipartRelatedStreamer
+from mime_related_streamer.multipart_related_streamer \
+    import XOPResponse
 
 
-def test():
-    import StringIO
-    
-    mrs = MultipartRelatedStreamer(StringIO.StringIO(content), 'example-1')
-    for part in mrs.iterparts():
-        print repr(part)
-        print part['content'].read()
-    assert 0
+log = logging.getLogger(__name__)
+
+
+@pytest.fixture
+def content():
+    return resource_string(__name__, 'data/multipart_related_basic')
+
+
+def test_multipart_related_streamer(content):
+    mrs = MultipartRelatedStreamer(StringIO(content))
+
+    with mrs.get_next_part() as part:
+        assert part['content-id'] is None
+        headers = part['headers']
+        assert 'Multipart/Related' in headers['content-type']
+        assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
+        assert part['content'].read() == ''
+
+    with mrs.get_next_part() as part:
+        assert part['content-id'] == '<950120.aaCC@XIson.com>'
+        assert '10\r\n34\r\n10' in part['content'].read()
+        assert '' == part['content'].read()
+
+    with mrs.get_next_part() as part:
+        assert part['content-id'] == '<950120.aaCB@XIson.com>'
+        assert 'gZHVja3MKRSBJIEUgSSB' in part['content'].read()
+        assert '' == part['content'].read()
+
+
+@mock.patch.object(requests, 'post')
+def test_xop_response(post):
+    post.return_value = resource_string(__name__, 'data/multipart_related_basic')
+
+    resp = requests.post()
+    xop = XOPResponse(resp)

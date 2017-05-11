@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 from contextlib import contextmanager
 from email.parser import HeaderParser
 from itertools import chain
@@ -12,7 +13,12 @@ class Part(dict):
     pass
 
 
-class IterableContent(object):
+class EmptyContent(object):
+    def read(self, n=-1):
+        return ''
+
+
+class StreamContent(object):
 
     def __init__(self, obj):
         assert isinstance(obj, MultipartRelatedStreamer)
@@ -67,20 +73,23 @@ class IterableContent(object):
         return buff
 
 
+def _line_generator(s):
+    for i in s:
+        # NOTE (ts): Is this rstripping necessary?
+        if i.endswith('\r\n'):
+            i = i.replace('\r\n', '')
+        elif i.endswith('\n'):
+            i = i.replace('\n', '')
+        yield i
+
+
 class MultipartRelatedStreamer(object):
 
-    def __init__(self, iter_lines, boundary, newline='\r\n'):
+    def __init__(self, stream, boundary=None, line_generator=None,
+                 newline='\r\n'):
         self._newline = newline
-
-        def it(s):
-            for i in s:
-                if i.endswith('\r\n'):
-                    i = i.replace('\r\n', '')
-                elif i.endswith('\n'):
-                    i = i.replace('\n', '')
-                yield i
-
-        self._ilines = it(iter_lines)
+        lgen = line_generator or _line_generator
+        self._ilines = lgen(stream)
 
         #ct = self.headers['content-type']
         #if not ct.startswith('multipart/related;'):
@@ -89,14 +98,18 @@ class MultipartRelatedStreamer(object):
         # if ct['type'] != 'application/xop+xml':
         #     raise ValueError('Response type is not application/xop+xml')
         #self._start = ct['start']
-        self._boundary = boundary
+
+        self._boundary = boundary or None
 
     def __repr__(self):
         return '<{}>'.format(self.__class__.__name__)
 
+    re_split_content_type = re.compile(r'(;|\r\n)')
+    
     def _parse_content_type(self, content_type):
-        d = {}
-        for item in content_type.split(';'):
+        items = self.re_split_content_type.split(content_type)
+        d = {'mime-type': items.pop(0)}
+        for item in items:
             item = item.strip()
             try:
                 idx = item.index('=')
@@ -108,23 +121,24 @@ class MultipartRelatedStreamer(object):
         return d
 
     def _is_boundary(self, line):
-        return line.startswith('--' + self._boundary)
+        return self._boundary and line.startswith('--' + self._boundary)
 
     def iterparts(self):
         while 1:
-            with self._parse_part() as part:
+            with self.get_next_part() as part:
                 if part is None:
                     break
                 else:
                     yield part
 
     @contextmanager
-    def _parse_part(self):
+    def get_next_part(self):
 
         def init_part():
-            return Part({'type': None, 'content': None, 'headers': None})
+            return Part({'content-id': None, 'content': None, 'headers': None})
 
-        part = None
+        # Assume the cursor is initialized to the first char of headers
+        part = init_part()
         headers = []
 
         while 1:
@@ -135,22 +149,21 @@ class MultipartRelatedStreamer(object):
             if self._is_boundary(line):
                 # A boundary followed by an empty line indicates the
                 # end of response content
-                next_line = next(self._ilines)
-                if next_line.strip() == '':
+                is_eof = False
+                try:
+                    next_line = next(self._ilines)
+                except StopIteration:
+                    is_eof = True
+                else:
+                    if next_line.strip() == '':
+                        is_eof = True
+                if is_eof:
                     log.debug('XOP content ends')
                     part = None
                     break
 
-                if part is not None:
-                    log.debug('Ending part %r', part)
-                    self._ilines = chain([line, next_line], self._ilines)
-                    break
-
-                else:
-                    part = init_part()
-                    log.debug('Creating a new part')
-                    self._ilines = chain([next_line], self._ilines)
-                    continue
+                self._ilines = chain([next_line], self._ilines)
+                continue
 
             # Keep reading till the boundary is found and a new part
             # is initialized
@@ -158,16 +171,35 @@ class MultipartRelatedStreamer(object):
                 continue
 
             if part['headers'] is None:
-                s = line.strip()
+                s = line.rstrip()
                 if s == '':
                     # An empty line here separates headers and content
-                    log.debug('End headers %r', part['headers'])
+                    log.debug('End headers %r', headers)
+
+                    # User helper to parse headers properly
                     p = HeaderParser()
                     part['headers'] = p.parsestr(self._newline.join(headers))
-                    part['type'] = part['headers'].get('content-id')
+                    part['content-id'] = part['headers'].get('content-id')
 
-                    self._ilines = chain(self._ilines)
-                    part['content'] = IterableContent(self)
+                    if not self._boundary:
+                        # Try looking for boundary info in this header
+                        if 'content-type' in part['headers']:
+                            pars = self._parse_content_type(
+                                part['headers']['content-type'])
+                            boundary = pars.get('boundary')
+                            if boundary:
+                                log.debug('Found boundary from headers: %s',
+                                          boundary)
+                                self._boundary = boundary
+
+                    next_line = next(self._ilines)
+                    if self._is_boundary(next_line):
+                        log.debug('Content is empty for this part')
+                        part['content'] = EmptyContent()
+                    else:
+                        log.debug('Content ready for read')
+                        self._ilines = chain([next_line], self._ilines)
+                        part['content'] = StreamContent(self)
                     break
 
                 headers.append(s)
@@ -192,23 +224,31 @@ class MultipartRelatedStreamer(object):
         log.debug('Left part context')
 
 
-class XOPResponse(MultipartRelatedStreamer):
+class ResponseWrapper(MultipartRelatedStreamer):
 
     def __init__(self, resp, newline='\r\n'):
+
+        def lg(resp):
+            for line in resp.iter_lines(delimiter=newline):
+                yield line
+
+        super(ResponseWrapper, self).__init__(resp, line_generator=lg)
+
+
+class XOPResponse(ResponseWrapper):
+
+    def __init__(self, resp):
         ct = resp.headers['content-type']
         if not ct.startswith('multipart/related;'):
             raise ValueError('Response is not multipart/related content')
         ct = self._parse_content_type(ct)
-        boundary = ct['boundary']
+        # boundary = ct['boundary']
 
-        super(XOPResponse, self).__init__(
-            iter_lins=resp.iter_lines(delimiter=newline),
-            boundary=boundary,
-            newline=newline)
+        super(XOPResponse, self).__init__(resp)
 
         self._init()
 
     def _init(self):
-        with self._parse_part() as part:
+        with self.get_next_part() as part:
             part['content'] = part['content'].read()
         self._start_part = part
