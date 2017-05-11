@@ -23,14 +23,19 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
 import codecs
 import os
 import re
+# from glob import glob
+# from os.path import basename
+# from os.path import splitext
 
+from setuptools import find_packages
 from setuptools import setup
 
 
-def find_meta(category, fpath='pkg/__init__.py'):
+def find_meta(category, fpath='src/mime_related_streamer/__init__.py'):
     here = os.path.abspath(os.path.dirname(__file__))
     with codecs.open(os.path.join(here, fpath), 'r') as f:
         package_root_file = f.read()
@@ -58,8 +63,11 @@ setup(
         'Operating System :: POSIX :: Linux',
         'Programming Language :: Python :: 2.7',
         'Topic :: Utilities'],
-    package_dir={'mime_related_streamer': 'pkg'},
-    packages=['mime_related_streamer'],
+    package_dir={'': 'src'},
+    packages=find_packages('src'),
+    # py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
+    # include_package_data=True,
+    # packages=['mime_related_streamer'],
     scripts=[],
     url='https://github.com/okomestudio/mime-related-streamer',
     install_requires=[])
