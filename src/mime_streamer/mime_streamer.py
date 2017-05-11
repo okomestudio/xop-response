@@ -21,7 +21,7 @@ class EmptyContent(object):
 class StreamContent(object):
 
     def __init__(self, obj):
-        assert isinstance(obj, MultipartRelatedStreamer)
+        assert isinstance(obj, MIMEStreamer)
         self._obj = obj
         self._buff = ''
         self._pos = 0
@@ -83,7 +83,7 @@ def _line_generator(s):
         yield i
 
 
-class MultipartRelatedStreamer(object):
+class MIMEStreamer(object):
 
     def __init__(self, stream, boundary=None, line_generator=None,
                  newline='\r\n'):
@@ -224,7 +224,7 @@ class MultipartRelatedStreamer(object):
         log.debug('Left part context')
 
 
-class ResponseWrapper(MultipartRelatedStreamer):
+class ResponseWrapper(MIMEStreamer):
 
     def __init__(self, resp, boundary=None, newline='\r\n'):
 

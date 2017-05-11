@@ -3,15 +3,12 @@ import logging
 from pkg_resources import resource_string
 from StringIO import StringIO
 
-import mock
 import pytest
 import requests
 import responses
 
-from mime_related_streamer.multipart_related_streamer \
-    import MultipartRelatedStreamer
-from mime_related_streamer.multipart_related_streamer \
-    import XOPResponse
+from mime_streamer.mime_streamer import MIMEStreamer
+from mime_streamer.mime_streamer import XOPResponse
 
 
 log = logging.getLogger(__name__)
@@ -22,8 +19,8 @@ def content():
     return resource_string(__name__, 'data/multipart_related_basic')
 
 
-def test_multipart_related_streamer(content):
-    mrs = MultipartRelatedStreamer(StringIO(content))
+def test_mime_streamer(content):
+    mrs = MIMEStreamer(StringIO(content))
 
     with mrs.get_next_part() as part:
         assert part['content-id'] is None

@@ -24,7 +24,7 @@
 # SOFTWARE.
 from __future__ import absolute_import
 
-from .xop_response import XOPResponse  # noqa
+# from .xop_response import XOPResponse  # noqa
 
 
 __version__ = '0.1.0.dev0'

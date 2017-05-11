@@ -5,7 +5,7 @@
 set -e
 
 opts=(-vv
-      --cov=mime_related_streamer
+      --cov=mime_streamer
       --cov-report=term-missing)
 
 # Tests to run can be specified explicitly or all tests are run:

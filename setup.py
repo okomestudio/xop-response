@@ -35,7 +35,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-def find_meta(category, fpath='src/mime_related_streamer/__init__.py'):
+def find_meta(category, fpath='src/mime_streamer/__init__.py'):
     here = os.path.abspath(os.path.dirname(__file__))
     with codecs.open(os.path.join(here, fpath), 'r') as f:
         package_root_file = f.read()
@@ -48,9 +48,8 @@ def find_meta(category, fpath='src/mime_related_streamer/__init__.py'):
 
 
 setup(
-    name='mime-related-streamer',
-    description=('Python requests wrapper for '
-                 'multipart/related streaming response'),
+    name='mime-streamer',
+    description=('Stream IO for multipart MIME content'),
     author=find_meta('author'),
     author_email=find_meta('author_email'),
     license=find_meta('license'),
@@ -69,5 +68,5 @@ setup(
     # include_package_data=True,
     # packages=['mime_related_streamer'],
     scripts=[],
-    url='https://github.com/okomestudio/mime-related-streamer',
+    url='https://github.com/okomestudio/mime-streamer',
     install_requires=[])
