@@ -7,8 +7,8 @@ import pytest
 import requests
 import responses
 
-from mime_streamer.mime_streamer import MIMEStreamer
-from mime_streamer.mime_streamer import XOPResponse
+from mime_streamer import MIMEStreamer
+from mime_streamer import XOPResponseStreamer
 
 
 log = logging.getLogger(__name__)
@@ -55,8 +55,8 @@ def test_xop_response():
     resp = requests.post(url)
     assert resp.status_code == 200
 
-    xop = XOPResponse(resp)
-    headers = xop.main_part['headers']
+    xop = XOPResponseStreamer(resp)
+    headers = xop.manifest['headers']
     assert headers['content-type'].startswith('application/xop+xml')
     assert headers['content-id'] == '<mymessage.xml@example.org>'
 

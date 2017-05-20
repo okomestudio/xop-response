@@ -1,4 +1,27 @@
 # -*- coding: utf-8 -*-
+#
+# The MIT License (MIT)
+# Copyright (c) 2017 Taro Sato
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 import logging
 import re
 from contextlib import contextmanager
@@ -84,12 +107,28 @@ def _line_generator(s):
 
 
 class MIMEStreamer(object):
+    """Generic MIME content streamer.
+
+    Args:
+        stream (`file`): The `file`-like object that reads from a
+            string buffer.
+        boundary (`str`, optional): The MIME part boundary text.
+        line_generator (generator, optional): A generator which takes
+            in `stream` and generates lines.
+        newline (`str`, optional): The newline delimiter used in
+            response, defaults to '\r\n` and does not need to be changed.
+
+    """
 
     def __init__(self, stream, boundary=None, line_generator=None,
                  newline='\r\n'):
         self._newline = newline
-        lgen = line_generator or _line_generator
-        self._ilines = lgen(stream)
+        self._ilines = (line_generator or _line_generator)(stream)
+
+        if not boundary:
+            # Look for boundary definition in the headers of the very
+            # initial part
+            pass
 
         #ct = self.headers['content-type']
         #if not ct.startswith('multipart/related;'):
@@ -211,49 +250,20 @@ class MIMEStreamer(object):
 
         log.debug('Leaving part context')
 
-        if part is not None:
+        if part is not None and not isinstance(part['content'], str):
+            # Read the entire stream for this part to ensure the
+            # cursor points to the end of the entire content or the
+            # beginning of the next part if exists
             try:
                 s = part['content'].read()
-                if s:
-                    log.debug('Flushing remaining part content: %d', len(s))
-                else:
-                    log.debug('Part content was fully read before exit')
             except Exception:
                 log.exception('Error flushing part content')
+                raise
+            else:
+                if s:
+                    log.debug('Flushed unread part content of size %d bytes',
+                              len(s))
+                else:
+                    log.debug('Part content was fully read before exit')
 
         log.debug('Left part context')
-
-
-class ResponseWrapper(MIMEStreamer):
-
-    def __init__(self, resp, boundary=None, newline='\r\n'):
-
-        def lg(resp):
-            for line in resp.iter_lines(delimiter=newline):
-                yield line
-
-        super(ResponseWrapper, self).__init__(resp, boundary=boundary,
-                                              line_generator=lg)
-
-
-class XOPResponse(ResponseWrapper):
-
-    def __init__(self, resp):
-        ct = resp.headers['content-type']
-        if not ct.startswith('multipart/related'):
-            raise ValueError('Response is not multipart/related content')
-        ct = self._parse_content_type(ct)
-        boundary = ct['boundary']
-
-        super(XOPResponse, self).__init__(resp, boundary=boundary)
-
-        self._init()
-
-    def _init(self):
-        line = ''
-        while not self._is_boundary(line):
-            line = next(self._ilines)
-
-        with self.get_next_part() as part:
-            part['content'] = part['content'].read()
-        self.main_part = part
