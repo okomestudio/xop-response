@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import email
 import logging
 from pkg_resources import resource_string
 from StringIO import StringIO
@@ -9,33 +10,57 @@ import responses
 
 from mime_streamer import MIMEStreamer
 from mime_streamer import XOPResponseStreamer
+from mime_streamer.exceptions import ParsingError
 
 
 log = logging.getLogger(__name__)
 
 
-@pytest.fixture
-def content():
-    return resource_string(__name__, 'data/multipart_related_basic')
+def load_raw(resource):
+    return resource_string(__name__, 'data/' + resource)
 
 
-def test_mime_streamer(content):
-    mrs = MIMEStreamer(StringIO(content))
+def test_text_html():
+    raw = load_raw('text_html')
+    parsed = email.message_from_string(raw)
+    assert parsed.is_multipart() is False
+    body = parsed.get_payload()
 
-    with mrs.get_next_part() as part:
-        assert part['content-id'] is None
+    streamer = MIMEStreamer(StringIO(raw))
+
+    with streamer.get_next_part() as part:
+        headers = part['headers']
+        assert 'content-type' in headers
+        assert headers['content-type'] == parsed.get('content-type')
+        content = part['content'].read()
+        assert content == body
+
+
+def test_text_html_empty():
+    raw = load_raw('text_html_empty')
+    streamer = MIMEStreamer(StringIO(raw))
+    with pytest.raises(ParsingError):
+        with streamer.get_next_part():
+            pass
+
+
+def test_mime_streamer():
+    raw = load_raw('multipart_related_basic')
+    streamer = MIMEStreamer(StringIO(raw))
+
+    with streamer.get_next_part() as part:
         headers = part['headers']
         assert 'Multipart/Related' in headers['content-type']
         assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
         assert part['content'].read() == ''
 
-    with mrs.get_next_part() as part:
-        assert part['content-id'] == '<950120.aaCC@XIson.com>'
+    with streamer.get_next_part() as part:
+        assert part['headers']['content-id'] == '<950120.aaCC@XIson.com>'
         assert '10\r\n34\r\n10' in part['content'].read()
         assert '' == part['content'].read()
 
-    with mrs.get_next_part() as part:
-        assert part['content-id'] == '<950120.aaCB@XIson.com>'
+    with streamer.get_next_part() as part:
+        assert part['headers']['content-id'] == '<950120.aaCB@XIson.com>'
         assert 'gZHVja3MKRSBJIEUgSSB' in part['content'].read()
         assert '' == part['content'].read()
 
@@ -61,9 +86,9 @@ def test_xop_response():
     assert headers['content-id'] == '<mymessage.xml@example.org>'
 
     with xop.get_next_part() as part:
-        assert part['content-id'] == '<http://example.org/me.png>'
+        assert part['headers']['content-id'] == '<http://example.org/me.png>'
         assert part['content'].read() == '23580\r\n\r\n'
 
     with xop.get_next_part() as part:
-        assert part['content-id'] == '<http://example.org/my.hsh>'
+        assert part['headers']['content-id'] == '<http://example.org/my.hsh>'
         assert part['content'].read() == '7923579\r\n\r\n'

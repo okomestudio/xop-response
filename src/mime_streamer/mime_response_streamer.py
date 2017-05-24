@@ -22,9 +22,12 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+from __future__ import absolute_import
 import logging
 
 from .mime_streamer import MIMEStreamer
+from .mime_streamer import NL
+from .mime_streamer import parse_content_type
 
 
 log = logging.getLogger(__name__)
@@ -38,15 +41,13 @@ class MIMEResponseStreamer(MIMEStreamer):
             request for MIME content(s).
         boundary (`str`, optional): The MIME part boundary text. Leave
             this `None` for it to be determined from response headers.
-        newline (`str`, optional): The newline delimiter used in
-            response, defaults to '\r\n` and does not need to be changed.
 
     """
 
-    def __init__(self, resp, boundary=None, newline='\r\n'):
+    def __init__(self, resp, boundary=None):
 
         def line_generator(resp):
-            for line in resp.iter_lines(delimiter=newline):
+            for line in resp.iter_lines(delimiter=NL):
                 yield line
 
         super(MIMEResponseStreamer, self).__init__(
@@ -68,7 +69,7 @@ class XOPResponseStreamer(MIMEResponseStreamer):
         if not ct.lower().startswith('multipart/related'):
             raise ValueError('Response is not multipart/related content')
 
-        ct = self._parse_content_type(ct)
+        ct = parse_content_type(ct)
         boundary = ct['boundary']
 
         super(XOPResponseStreamer, self).__init__(resp, boundary=boundary)
