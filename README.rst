@@ -5,7 +5,7 @@ MIME content stream reader for Python.
 
 `mime-streamer` is licensed under the `MIT License (MIT)`_.
 
-.. _MIT License (MIT): https://raw.githubusercontent.com/okomestudio/pyrediq/development/LICENSE.txt
+.. _MIT License (MIT): https://raw.githubusercontent.com/okomestudio/mime-streamer/master/LICENSE
 
 
 Basic Usage

@@ -232,9 +232,11 @@ class MIMEStreamer(object):
         self._ilines = chain([line], self._ilines)
 
     def _is_boundary(self, line):
+        """Test if `line` is a part boundary."""
         return self._boundary and line.startswith('--' + self._boundary)
 
     def iterparts(self):
+        """Iterate over the message parts."""
         while 1:
             with self.get_next_part() as part:
                 if part is None:
@@ -274,7 +276,6 @@ class MIMEStreamer(object):
                         is_eof = True
                 if is_eof:
                     log.debug('Content ends')
-                    # part = None
                     break
 
                 self.rollback_line(next_line)

@@ -20,53 +20,62 @@ def load_raw(resource):
     return resource_string(__name__, 'data/' + resource)
 
 
-def test_text_html():
-    raw = load_raw('text_html')
-    parsed = email.message_from_string(raw)
-    assert parsed.is_multipart() is False
-    body = parsed.get_payload()
+class TestMIMEStreamer(object):
 
-    streamer = MIMEStreamer(StringIO(raw))
+    def test_text_html(self):
+        raw = load_raw('text_html')
+        parsed = email.message_from_string(raw)
+        assert parsed.is_multipart() is False
+        body = parsed.get_payload()
 
-    with streamer.get_next_part() as part:
-        headers = part.headers
-        assert 'content-type' in headers
-        assert headers['content-type'] == parsed.get('content-type')
-        content = part.content.read()
-        assert content == body
+        streamer = MIMEStreamer(StringIO(raw))
+
+        with streamer.get_next_part() as part:
+            headers = part.headers
+            assert 'content-type' in headers
+            assert headers['content-type'] == parsed.get('content-type')
+            content = part.content.read()
+            assert content == body
+
+    def test_text_html_empty(self):
+        raw = load_raw('text_html_empty')
+        streamer = MIMEStreamer(StringIO(raw))
+        with pytest.raises(ParsingError):
+            with streamer.get_next_part():
+                pass
+
+    def test_multipart_related_basic(self):
+        raw = load_raw('multipart_related_basic')
+        streamer = MIMEStreamer(StringIO(raw))
+
+        with streamer.get_next_part() as part:
+            headers = part.headers
+            assert 'Multipart/Related' in headers['content-type']
+            assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
+            assert part.content.read() == ''
+
+        with streamer.get_next_part() as part:
+            assert part.headers['content-id'] == '<950120.aaCC@XIson.com>'
+            assert '10\r\n34\r\n10' in part.content.read()
+            assert '' == part.content.read()
+
+        with streamer.get_next_part() as part:
+            assert part.headers['content-id'] == '<950120.aaCB@XIson.com>'
+            assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
+            assert '' == part.content.read()
+
+    def test_iterparts(self):
+        expected_content_ids = (None,
+                                '<950120.aaCC@XIson.com>',
+                                '<950120.aaCB@XIson.com>')
+        raw = load_raw('multipart_related_basic')
+        streamer = MIMEStreamer(StringIO(raw))
+        for part, cid in zip(streamer.iterparts(), expected_content_ids):
+            assert part.headers['content-id'] == cid
 
 
-def test_text_html_empty():
-    raw = load_raw('text_html_empty')
-    streamer = MIMEStreamer(StringIO(raw))
-    with pytest.raises(ParsingError):
-        with streamer.get_next_part():
-            pass
-
-
-def test_multipart_related_basic():
-    raw = load_raw('multipart_related_basic')
-    streamer = MIMEStreamer(StringIO(raw))
-
-    with streamer.get_next_part() as part:
-        headers = part.headers
-        assert 'Multipart/Related' in headers['content-type']
-        assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
-        assert part.content.read() == ''
-
-    with streamer.get_next_part() as part:
-        assert part.headers['content-id'] == '<950120.aaCC@XIson.com>'
-        assert '10\r\n34\r\n10' in part.content.read()
-        assert '' == part.content.read()
-
-    with streamer.get_next_part() as part:
-        assert part.headers['content-id'] == '<950120.aaCB@XIson.com>'
-        assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
-        assert '' == part.content.read()
-
-
-@responses.activate
-def test_xop_example():
+@pytest.fixture
+def post_url():
     url = 'http://mockapi/ep'
     content_type = ('multipart/related; '
                     'type="application/xop+xml"; '
@@ -77,18 +86,36 @@ def test_xop_example():
         body=resource_string(__name__, 'data/xop_example'),
         content_type=content_type)
 
-    resp = requests.post(url)
-    assert resp.status_code == 200
+    responses.start()
 
-    xop = XOPResponseStreamer(resp)
-    headers = xop.manifest_part.headers
-    assert headers['content-type'].startswith('application/xop+xml')
-    assert headers['content-id'] == '<mymessage.xml@example.org>'
+    yield url
 
-    with xop.get_next_part() as part:
-        assert part.headers['content-id'] == '<http://example.org/me.png>'
-        assert part.content.read() == '23580\r\n\r\n'
+    responses.stop()
 
-    with xop.get_next_part() as part:
-        assert part.headers['content-id'] == '<http://example.org/my.hsh>'
-        assert part.content.read() == '7923579\r\n\r\n'
+
+class TestXOPResponseStreamer(object):
+
+    def test_xop_example(self, post_url):
+        resp = requests.post(post_url)
+        assert resp.status_code == 200
+
+        streamer = XOPResponseStreamer(resp)
+        headers = streamer.manifest_part.headers
+        assert headers['content-type'].startswith('application/xop+xml')
+        assert headers['content-id'] == '<mymessage.xml@example.org>'
+
+        with streamer.get_next_part() as part:
+            assert part.headers['content-id'] == '<http://example.org/me.png>'
+            assert part.content.read() == '23580\r\n\r\n'
+
+        with streamer.get_next_part() as part:
+            assert part.headers['content-id'] == '<http://example.org/my.hsh>'
+            assert part.content.read() == '7923579\r\n\r\n'
+
+    def test_iterparts(self, post_url):
+        expected_content_ids = ('<http://example.org/me.png>',
+                                '<http://example.org/my.hsh>')
+        resp = requests.post(post_url)
+        streamer = XOPResponseStreamer(resp)
+        for part, cid in zip(streamer.iterparts(), expected_content_ids):
+            assert part.headers['content-id'] == cid
