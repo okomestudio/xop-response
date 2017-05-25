@@ -92,8 +92,24 @@ def parse_content_type(text):
     return d
 
 
-class Part(dict):
-    """A wrapper for a single message."""
+class Part(object):
+    """A part constituting (multipart) message."""
+
+    def __init__(self, content=None, headers=None):
+        self._headers = headers or {}
+        self._content = content
+
+    @property
+    def content(self):
+        return self._content
+
+    @content.setter
+    def content(self, stream_content):
+        self._content = stream_content
+
+    @property
+    def headers(self):
+        return self._headers
 
 
 class StreamContent(object):
@@ -233,7 +249,7 @@ class MIMEStreamer(object):
 
         """
         # Assume the cursor is at the first char of headers of a part
-        part = Part({'content': None, 'headers': None})
+        part = None
         headers = []
 
         while 1:
@@ -258,25 +274,21 @@ class MIMEStreamer(object):
                         is_eof = True
                 if is_eof:
                     log.debug('Content ends')
-                    part = None
+                    # part = None
                     break
 
                 self.rollback_line(next_line)
                 continue
 
-            # Keep reading till the boundary is found and a new part
-            # is initialized
             if part is None:
-                continue
-
-            if part['headers'] is None:
                 rstripped_line = line.rstrip()
                 if rstripped_line == '':
                     # This empty line separates headers and content in
                     # the current part
                     log.debug('End headers %r', headers)
                     headers = HeaderParser().parsestr(NL.join(headers))
-                    part['headers'] = headers
+
+                    part = Part(headers=headers)
 
                     if not self._boundary and 'content-type' in headers:
                         # Try looking for boundary info in this header
@@ -293,15 +305,15 @@ class MIMEStreamer(object):
                         next_line = self.read_next_line()
                     except StopIteration:
                         log.debug('EOF detected')
-                        part['content'] = StringIO('')
+                        part.content = StringIO('')
                     else:
                         if self._is_boundary(next_line):
                             log.debug('Content is empty for this part')
-                            part['content'] = StringIO('')
+                            part.content = StringIO('')
                         else:
                             log.debug('Content ready for read')
                             self.rollback_line(next_line)
-                            part['content'] = StreamContent(self)
+                            part.content = StreamContent(self)
 
                     break
 
@@ -316,7 +328,7 @@ class MIMEStreamer(object):
             # cursor points to the end of the entire content or the
             # beginning of the next part, if exists
             try:
-                flushed = part['content'].read()
+                flushed = part.content.read()
             except Exception:
                 log.exception('Error flushing part content')
                 raise

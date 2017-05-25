@@ -29,10 +29,10 @@ def test_text_html():
     streamer = MIMEStreamer(StringIO(raw))
 
     with streamer.get_next_part() as part:
-        headers = part['headers']
+        headers = part.headers
         assert 'content-type' in headers
         assert headers['content-type'] == parsed.get('content-type')
-        content = part['content'].read()
+        content = part.content.read()
         assert content == body
 
 
@@ -49,20 +49,20 @@ def test_multipart_related_basic():
     streamer = MIMEStreamer(StringIO(raw))
 
     with streamer.get_next_part() as part:
-        headers = part['headers']
+        headers = part.headers
         assert 'Multipart/Related' in headers['content-type']
         assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
-        assert part['content'].read() == ''
+        assert part.content.read() == ''
 
     with streamer.get_next_part() as part:
-        assert part['headers']['content-id'] == '<950120.aaCC@XIson.com>'
-        assert '10\r\n34\r\n10' in part['content'].read()
-        assert '' == part['content'].read()
+        assert part.headers['content-id'] == '<950120.aaCC@XIson.com>'
+        assert '10\r\n34\r\n10' in part.content.read()
+        assert '' == part.content.read()
 
     with streamer.get_next_part() as part:
-        assert part['headers']['content-id'] == '<950120.aaCB@XIson.com>'
-        assert 'gZHVja3MKRSBJIEUgSSB' in part['content'].read()
-        assert '' == part['content'].read()
+        assert part.headers['content-id'] == '<950120.aaCB@XIson.com>'
+        assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
+        assert '' == part.content.read()
 
 
 @responses.activate
@@ -81,14 +81,14 @@ def test_xop_example():
     assert resp.status_code == 200
 
     xop = XOPResponseStreamer(resp)
-    headers = xop.manifest_part['headers']
+    headers = xop.manifest_part.headers
     assert headers['content-type'].startswith('application/xop+xml')
     assert headers['content-id'] == '<mymessage.xml@example.org>'
 
     with xop.get_next_part() as part:
-        assert part['headers']['content-id'] == '<http://example.org/me.png>'
-        assert part['content'].read() == '23580\r\n\r\n'
+        assert part.headers['content-id'] == '<http://example.org/me.png>'
+        assert part.content.read() == '23580\r\n\r\n'
 
     with xop.get_next_part() as part:
-        assert part['headers']['content-id'] == '<http://example.org/my.hsh>'
-        assert part['content'].read() == '7923579\r\n\r\n'
+        assert part.headers['content-id'] == '<http://example.org/my.hsh>'
+        assert part.content.read() == '7923579\r\n\r\n'

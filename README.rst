@@ -52,18 +52,18 @@ Basic Usage
     streamer = MIMEStreamer(StringIO(raw))
 
     with streamer.get_next_part() as part:
-        headers = part['headers']
+        headers = part.headers
         assert 'Multipart/Related' in headers['content-type']
         assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
-        assert part['content'].read() == ''
+        assert part.content.read() == ''
 
     with streamer.get_next_part() as part:
-        assert part['headers']['content-id'] == '<950120.aaCC@XIson.com>'
-        assert '10\r\n34\r\n10' in part['content'].read()
+        assert part.headers['content-id'] == '<950120.aaCC@XIson.com>'
+        assert '10\r\n34\r\n10' in part.content.read()
 
     with streamer.get_next_part() as part:
-        assert part['headers']['content-id'] == '<950120.aaCB@XIson.com>'
-        assert 'gZHVja3MKRSBJIEUgSSB' in part['content'].read()
+        assert part.headers['content-id'] == '<950120.aaCB@XIson.com>'
+        assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
 
        
 Installation
@@ -77,4 +77,7 @@ Installation
 Note
 ----
 
-`MIMEStreamer` does not support nested multipart messages.
+The library currently is missing the following features:
+
+- Nested multipart messages
+- Python 3.x

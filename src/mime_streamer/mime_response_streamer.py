@@ -96,12 +96,12 @@ class XOPResponseStreamer(MIMEResponseStreamer):
             line = self.read_next_line()
 
         with self.get_next_part() as part:
-            content = part['content'].read()
+            content = part.content.read()
 
-        if not part['headers']['content-type'].lower().startswith(
+        if not part.headers['content-type'].lower().startswith(
                 'application/xop+xml'):
             raise InvalidContentType(
                 'Initial content type must be application/xop+xml')
 
-        part['content'] = content
+        part.content = content
         self.manifest_part = part
