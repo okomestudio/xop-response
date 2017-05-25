@@ -25,6 +25,7 @@
 from __future__ import absolute_import
 import logging
 
+from .exceptions import InvalidContentType
 from .mime_streamer import MIMEStreamer
 from .mime_streamer import NL
 from .mime_streamer import parse_content_type
@@ -37,14 +38,19 @@ class MIMEResponseStreamer(MIMEStreamer):
     """An adapter for use with :class:`requests.Response`.
 
     Args:
-        resp (:class:`requests.Response`): A response for an HTTP
-            request for MIME content(s).
-        boundary (`str`, optional): The MIME part boundary text. Leave
-            this `None` for it to be determined from response headers.
+        resp (:class:`requests.Response`): A response to an HTTP
+            request.
 
     """
 
-    def __init__(self, resp, boundary=None):
+    def __init__(self, resp):
+        ct = resp.headers['content-type']
+        if ct.lower().startswith('multipart/'):
+            ct = parse_content_type(ct)
+            boundary = ct['boundary']
+            self._ct_params = ct
+        else:
+            boundary = None
 
         def line_generator(resp):
             for line in resp.iter_lines(delimiter=NL):
@@ -55,39 +61,47 @@ class MIMEResponseStreamer(MIMEStreamer):
 
 
 class XOPResponseStreamer(MIMEResponseStreamer):
-    """An adapter for handling `applicatoin/xop+xml` contents (XML-binary
-    optimized packaging).
+    """An adapter for handling `XML-binary optimized packaging`_ contents
+    via :class:`requests.Response`.
+
+    This streamer loads the first part of the multipart message
+    corresponding to `application/xop+xml` and makes it available as
+    :attr:`XOPResponseStreamer.manifest_part`.
 
     Args:
-        resp (:class:`requests.Response`): A response for an HTTP
-            request for `application/xop+xml` content(s).
+        resp (:class:`requests.Response`): A response to an HTTP
+            request.
+
+    .. _XML-binary optimized packaging:
+        https://www.w3.org/TR/xop10/
 
     """
 
     def __init__(self, resp):
-        ct = resp.headers['content-type']
-        if not ct.lower().startswith('multipart/related'):
-            raise ValueError('Response is not multipart/related content')
+        super(XOPResponseStreamer, self).__init__(resp)
+        if self._ct_params['mime-type'].lower() != 'multipart/related':
+            raise InvalidContentType(
+                'Content must be of multipart/related type')
+        if self._ct_params['type'].lower() != 'application/xop+xml':
+            raise InvalidContentType(
+                'Initial content type must be application/xop+xml')
 
-        ct = parse_content_type(ct)
-        boundary = ct['boundary']
+        self._load_manifest_part()
 
-        super(XOPResponseStreamer, self).__init__(resp, boundary=boundary)
-
-        self._load_first_part()
-
-    def _load_first_part(self):
-        """Initialize the instance with preloading the first part containing
-        manifest.
-
-        """
+    def _load_manifest_part(self):
+        """Load the first part of application/xop+xml."""
         # Forward to the first boundary line
         line = ''
         while not self._is_boundary(line):
-            line = next(self._ilines)
+            line = self.read_next_line()
 
-        # ... to get to the first part containing manifest information
         with self.get_next_part() as part:
-            part['content'] = part['content'].read()
+            content = part['content'].read()
 
-        self.manifest = part
+        if not part['headers']['content-type'].lower().startswith(
+                'application/xop+xml'):
+            raise InvalidContentType(
+                'Initial content type must be application/xop+xml')
+
+        part['content'] = content
+        self.manifest_part = part

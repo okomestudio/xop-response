@@ -27,3 +27,7 @@ from __future__ import absolute_import
 
 class ParsingError(Exception):
     """Raised when an error occurs while stream parsing."""
+
+
+class InvalidContentType(Exception):
+    """Raised when invalid content is supplied."""

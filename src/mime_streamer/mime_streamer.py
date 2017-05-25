@@ -97,7 +97,8 @@ class Part(dict):
 
 
 class StreamContent(object):
-    """The file-like interface for reading stream content.
+    """The iterator interface for reading content from a
+    :class:`MIMEStreamer` object.
 
     Args:
         streamer (:class:`MIMEStreamer`): The streamer object
@@ -108,8 +109,14 @@ class StreamContent(object):
     def __init__(self, streamer):
         assert isinstance(streamer, MIMEStreamer)
         self._streamer = streamer
+
+        # The buffer storing current line
         self._buff = ''
+
+        # The character position last read from `_buff`
         self._pos = 0
+
+        # Boolean flag of whether EOF/boundary has been seen or not
         self._eof_seen = False
 
     def __repr__(self):
@@ -119,39 +126,60 @@ class StreamContent(object):
         return self
 
     def next(self):
+        """Read a byte from stream.
+
+        Returns:
+            str: A single byte from the stream.
+
+        Raises:
+            StopIteration: When EOF is reached.
+
+        """
         if self._eof_seen:
             raise StopIteration
-        if self._pos >= len(self._buff) - 1:
-            l = next(self._streamer._ilines)
+
+        if self._pos + 1 >= len(self._buff):
+            # The cursor points past the current line in the buffer,
+            # so read in the new line
+            line = self._streamer.read_next_line()
             log.debug('%r read: %s%s',
-                      self, l[:50], '...' if len(l) > 50 else '')
-            if self._streamer._is_boundary(l):
+                      self, line[:76], '...' if len(line) > 76 else '')
+
+            if self._streamer._is_boundary(line):
                 log.debug('%r detected boundary', self)
-                self._streamer._ilines = chain([l], self._streamer._ilines)
+                self._streamer.rollback_line(line)
                 self._eof_seen = True
                 raise StopIteration
-            self._buff = l + NL
-            self._pos = -1
-        self._pos += 1
+
+            self._buff = line + NL
+            self._pos = 0
+        else:
+            self._pos += 1
+
         return self._buff[self._pos]
 
     def read(self, n=-1):
+        """Read at most `n` bytes, returned as string.
+
+        Args:
+            n (int, optional): If negative or omitted, read until EOF
+                or part boundary is reached. If positive, at most `n`
+                bytes will be returned.
+
+        Returns:
+            str: The bytes read from streamer.
+
+        """
         assert n != 0
         buff = ''
-        if n > 0:
-            for i in xrange(n):
-                try:
-                    c = next(self)
-                except StopIteration:
-                    break
-                buff += c
-        else:
-            while 1:
-                try:
-                    c = next(self)
-                except StopIteration:
-                    break
-                buff += c
+        # iter(int, 1) is a way to create an infinite loop
+        iterator = xrange(n) if n > 0 else iter(int, 1)
+        for i in iterator:
+            try:
+                c = next(self)
+            except StopIteration:
+                break
+            buff += c
         return buff
 
 
@@ -173,6 +201,19 @@ class MIMEStreamer(object):
 
     def __repr__(self):
         return '<{}>'.format(self.__class__.__name__)
+
+    def read_next_line(self):
+        """Read the next line from stream."""
+        return next(self._ilines)
+
+    def rollback_line(self, line):
+        """Add back an already-read line to the stream.
+
+        Args:
+            line (str): The line to add back to the stream
+
+        """
+        self._ilines = chain([line], self._ilines)
 
     def _is_boundary(self, line):
         return self._boundary and line.startswith('--' + self._boundary)
@@ -197,7 +238,7 @@ class MIMEStreamer(object):
 
         while 1:
             try:
-                line = next(self._ilines)
+                line = self.read_next_line()
             except StopIteration:
                 raise ParsingError('Error parsing malformed content')
 
@@ -209,7 +250,7 @@ class MIMEStreamer(object):
                 # end of response content
                 is_eof = False
                 try:
-                    next_line = next(self._ilines)
+                    next_line = self.read_next_line()
                 except StopIteration:
                     is_eof = True
                 else:
@@ -220,7 +261,7 @@ class MIMEStreamer(object):
                     part = None
                     break
 
-                self._ilines = chain([next_line], self._ilines)
+                self.rollback_line(next_line)
                 continue
 
             # Keep reading till the boundary is found and a new part
@@ -249,7 +290,7 @@ class MIMEStreamer(object):
 
                     # Probe the line following the headers/content delimiter
                     try:
-                        next_line = next(self._ilines)
+                        next_line = self.read_next_line()
                     except StopIteration:
                         log.debug('EOF detected')
                         part['content'] = StringIO('')
@@ -259,7 +300,7 @@ class MIMEStreamer(object):
                             part['content'] = StringIO('')
                         else:
                             log.debug('Content ready for read')
-                            self._ilines = chain([next_line], self._ilines)
+                            self.rollback_line(next_line)
                             part['content'] = StreamContent(self)
 
                     break
@@ -270,7 +311,7 @@ class MIMEStreamer(object):
 
         yield part
 
-        if part is not None and not isinstance(part['content'], str):
+        if part is not None:
             # Read the entire stream for this part to ensure the
             # cursor points to the end of the entire content or the
             # beginning of the next part, if exists

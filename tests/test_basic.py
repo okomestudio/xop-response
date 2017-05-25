@@ -44,7 +44,7 @@ def test_text_html_empty():
             pass
 
 
-def test_mime_streamer():
+def test_multipart_related_basic():
     raw = load_raw('multipart_related_basic')
     streamer = MIMEStreamer(StringIO(raw))
 
@@ -66,7 +66,7 @@ def test_mime_streamer():
 
 
 @responses.activate
-def test_xop_response():
+def test_xop_example():
     url = 'http://mockapi/ep'
     content_type = ('multipart/related; '
                     'type="application/xop+xml"; '
@@ -81,7 +81,7 @@ def test_xop_response():
     assert resp.status_code == 200
 
     xop = XOPResponseStreamer(resp)
-    headers = xop.manifest['headers']
+    headers = xop.manifest_part['headers']
     assert headers['content-type'].startswith('application/xop+xml')
     assert headers['content-id'] == '<mymessage.xml@example.org>'
 
