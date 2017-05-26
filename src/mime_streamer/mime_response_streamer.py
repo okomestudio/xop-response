@@ -26,6 +26,12 @@ from __future__ import absolute_import
 import logging
 from itertools import chain
 
+# This is just to avoid making `requests` a requirement
+try:
+    from requests.exceptions import StreamConsumedError
+except ImportError:
+    StreamConsumedError = Exception
+
 from .exceptions import InvalidContentType
 from .mime_streamer import MIMEStreamer
 from .mime_streamer import NL
@@ -45,9 +51,14 @@ class ResponseStreamIO(StreamIO):
         self._previous_line = None
 
     def readline(self, length=None):
-        line = next(self._il)
-        self._previous_line = line
-        return line + NL
+        try:
+            line = next(self._il)
+        except (StopIteration, StreamConsumedError):
+            line = ''
+        else:
+            self._previous_line = line
+            line += NL
+        return line
 
     def rollback_line(self):
         self._il = chain([self._previous_line], self._il)
