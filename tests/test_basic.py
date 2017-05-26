@@ -10,6 +10,7 @@ import responses
 
 from mime_streamer import MIMEStreamer
 from mime_streamer import XOPResponseStreamer
+from mime_streamer.exceptions import NoPartError
 from mime_streamer.exceptions import ParsingError
 
 
@@ -64,14 +65,9 @@ class TestMIMEStreamer(object):
             assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
             assert '' == part.content.read()
 
-    def test_iterparts(self):
-        expected_content_ids = (None,
-                                '<950120.aaCC@XIson.com>',
-                                '<950120.aaCB@XIson.com>')
-        raw = load_raw('multipart_related_basic')
-        streamer = MIMEStreamer(StringIO(raw))
-        for part, cid in zip(streamer.iterparts(), expected_content_ids):
-            assert part.headers['content-id'] == cid
+        with pytest.raises(NoPartError):
+            with streamer.get_next_part() as part:
+                assert True
 
 
 @pytest.fixture
@@ -96,7 +92,7 @@ def post_url():
 class TestXOPResponseStreamer(object):
 
     def test_xop_example(self, post_url):
-        resp = requests.post(post_url)
+        resp = requests.post(post_url, stream=True)
         assert resp.status_code == 200
 
         streamer = XOPResponseStreamer(resp)
@@ -111,11 +107,3 @@ class TestXOPResponseStreamer(object):
         with streamer.get_next_part() as part:
             assert part.headers['content-id'] == '<http://example.org/my.hsh>'
             assert part.content.read() == '7923579\r\n\r\n'
-
-    def test_iterparts(self, post_url):
-        expected_content_ids = ('<http://example.org/me.png>',
-                                '<http://example.org/my.hsh>')
-        resp = requests.post(post_url)
-        streamer = XOPResponseStreamer(resp)
-        for part, cid in zip(streamer.iterparts(), expected_content_ids):
-            assert part.headers['content-id'] == cid

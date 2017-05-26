@@ -24,14 +24,33 @@
 # SOFTWARE.
 from __future__ import absolute_import
 import logging
+from itertools import chain
 
 from .exceptions import InvalidContentType
 from .mime_streamer import MIMEStreamer
 from .mime_streamer import NL
 from .mime_streamer import parse_content_type
+from .mime_streamer import StreamIO
 
 
 log = logging.getLogger(__name__)
+
+
+class ResponseStreamIO(StreamIO):
+
+    def __init__(self, resp):
+        super(ResponseStreamIO, self).__init__(stream=None)
+        self.resp = resp
+        self._il = self.resp.iter_lines(delimiter=NL)
+        self._previous_line = None
+
+    def readline(self, length=None):
+        line = next(self._il)
+        self._previous_line = line
+        return line + NL
+
+    def rollback_line(self):
+        self._il = chain([self._previous_line], self._il)
 
 
 class MIMEResponseStreamer(MIMEStreamer):
@@ -52,12 +71,10 @@ class MIMEResponseStreamer(MIMEStreamer):
         else:
             boundary = None
 
-        def line_generator(resp):
-            for line in resp.iter_lines(delimiter=NL):
-                yield line
+        super(MIMEResponseStreamer, self).__init__(resp, boundary=boundary)
 
-        super(MIMEResponseStreamer, self).__init__(
-            resp, boundary=boundary, line_generator=line_generator)
+    def init_stream_io(self, resp):
+        return ResponseStreamIO(resp)
 
 
 class XOPResponseStreamer(MIMEResponseStreamer):
@@ -93,7 +110,7 @@ class XOPResponseStreamer(MIMEResponseStreamer):
         # Forward to the first boundary line
         line = ''
         while not self._is_boundary(line):
-            line = self.read_next_line()
+            line = self.stream.readline()
 
         with self.get_next_part() as part:
             content = part.content.read()

@@ -31,3 +31,7 @@ class ParsingError(Exception):
 
 class InvalidContentType(Exception):
     """Raised when invalid content is supplied."""
+
+
+class NoPartError(Exception):
+    """Raised when no more part exists in the message."""

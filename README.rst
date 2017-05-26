@@ -14,40 +14,10 @@ Basic Usage
 .. code-block:: python
 
     from StringIO import StringIO
+    from pkg_resources import resource_string            
     from mime_streamer import MIMEStreamer
 
-    raw = '\r\n'.join([
-        'Content-Type: Multipart/Related; boundary=example-1',
-        '        start="<950120.aaCC@XIson.com>";',
-        '        type="Application/X-FixedRecord"',
-        '        start-info="-o ps"',
-        '',
-        '--example-1',
-        'Content-Type: Application/X-FixedRecord',
-        'Content-ID: <950120.aaCC@XIson.com>',
-        '',
-        '25',
-        '10',
-        '34',
-        '10',
-        '25',
-        '21',
-        '26',
-        '10',
-        '--example-1',
-        'Content-Type: Application/octet-stream',
-        'Content-Description: The fixed length records',
-        'Content-Transfer-Encoding: base64',
-        'Content-ID: <950120.aaCB@XIson.com>',
-        '',
-        'T2xkIE1hY0RvbmFsZCBoYWQgYSBmYXJtCkUgSS',
-        'BFIEkgTwpBbmQgb24gaGlzIGZhcm0gaGUgaGFk',
-        'IHNvbWUgZHVja3MKRSBJIEUgSSBPCldpdGggYS',
-        'BxdWFjayBxdWFjayBoZXJlLAphIHF1YWNrIHF1',
-        'YWNrIHRoZXJlLApldmVyeSB3aGVyZSBhIHF1YW',
-        'NrIHF1YWNrCkUgSSBFIEkgTwo=',
-        '',
-        '--example-1--'])
+    raw = resource_string('tests', 'data/multipart_related_basic')
 
     streamer = MIMEStreamer(StringIO(raw))
 
