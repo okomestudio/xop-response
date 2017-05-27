@@ -1,0 +1,55 @@
+#!/bin/bash
+#
+# The MIT License (MIT)
+# Copyright (c) 2017 Taro Sato
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# Build Sphinx documentation
+
+set -e
+
+# Install required packages.
+for package in Sphinx; do
+  if ! python -c "import $package" 2> /dev/null; then
+    pip install "$package"
+  fi
+done
+
+# Build docs.
+cd docs
+rm -rf _build
+make html
+cd ..
+
+# If command-line option `-o` is given, try opening the documentation
+# with a browser:
+if [ $# -eq 1 ]; then
+  if [ $1 == "-o" ]; then
+    opener=$(which xdg-open)
+    if [ -z "$opener" ]; then
+      # If `xdg-open` not found, try `open`, but this might not work
+      # if it refers to `openvt`... don't know what happens on OS X.
+      opener=open
+    fi
+    $opener docs/_build/html/index.html
+  fi
+fi
