@@ -29,7 +29,7 @@ from .mime_response_streamer import XOPResponseStreamer  # noqa
 from .mime_streamer import MIMEStreamer  # noqa
 
 
-__version__ = '0.1.1.dev0'
+__version__ = '0.1.1'
 __author__ = 'Taro Sato'
 __author_email__ = 'okomestudio@gmail.com'
 __license__ = 'MIT'
