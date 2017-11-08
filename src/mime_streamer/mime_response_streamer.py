@@ -24,12 +24,15 @@
 # SOFTWARE.
 from __future__ import absolute_import
 import logging
+import re
 from itertools import chain
 
 # This is just to avoid making `requests` a requirement
 try:
     from requests.exceptions import StreamConsumedError
+    from requests.models import ITER_CHUNK_SIZE
 except ImportError:
+    ITER_CHUNK_SIZE = 512
     StreamConsumedError = Exception
 
 from .exceptions import InvalidContentType
@@ -47,8 +50,32 @@ class ResponseStreamIO(StreamIO):
     def __init__(self, resp):
         super(ResponseStreamIO, self).__init__(stream=None)
         self.resp = resp
-        self._il = self.resp.iter_lines(delimiter=NL)
+        self._il = self.iter_lines()
         self._previous_line = None
+
+    _re_newline = re.compile(r'.*(\r\n|\n|\r|\n\r)$')
+
+    def iter_lines(self, chunk_size=ITER_CHUNK_SIZE, decode_unicode=None):
+        pending = None
+        for chunk in self.resp.iter_content(chunk_size=chunk_size,
+                                            decode_unicode=decode_unicode):
+            if pending is not None:
+                chunk = pending + chunk
+
+            lines = chunk.splitlines(True)
+
+            # If the last element in lines should continue on to the
+            # next chunk to be read, keep it in pending
+            if lines and lines[-1] and not self._re_newline.match(lines[-1]):
+                pending = lines.pop()
+            else:
+                pending = None
+
+            for line in lines:
+                yield line
+
+        if pending is not None:
+            yield pending
 
     def readline(self, length=None):
         try:
@@ -57,7 +84,6 @@ class ResponseStreamIO(StreamIO):
             line = ''
         else:
             self._previous_line = line
-            line += NL
         return line
 
     def rollback_line(self):

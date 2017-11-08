@@ -106,4 +106,4 @@ class TestXOPResponseStreamer(object):
 
         with streamer.get_next_part() as part:
             assert part.headers['content-id'] == '<http://example.org/my.hsh>'
-            assert part.content.read() == '7923579\r\n\r\n'
+            assert part.content.read() == '7923579\r\n'
