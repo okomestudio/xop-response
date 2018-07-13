@@ -2,11 +2,15 @@
 import email
 import logging
 from pkg_resources import resource_string
-from StringIO import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 import pytest
 import requests
 import responses
+import six
 
 from mime_streamer import MIMEStreamer
 from mime_streamer import XOPResponseStreamer
@@ -18,7 +22,10 @@ log = logging.getLogger(__name__)
 
 
 def load_raw(resource):
-    return resource_string(__name__, 'data/' + resource)
+    if six.PY2:
+        return resource_string(__name__, 'data/' + resource)
+    else:
+        return str(resource_string(__name__, 'data/' + resource))
 
 
 class TestMIMEStreamer(object):

@@ -27,7 +27,12 @@ import logging
 import re
 from contextlib import contextmanager
 from email.parser import HeaderParser
-from StringIO import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
+import six
 
 from .exceptions import NoPartError
 from .exceptions import ParsingError
@@ -40,7 +45,10 @@ NL = b'\r\n'
 #: byte: The new line used to delimit lines
 
 
-re_split_content_type = re.compile(r'(;|' + NL + ')')
+if six.PY2:
+    re_split_content_type = re.compile(r'(;|' + NL + ')')
+else:
+    re_split_content_type = re.compile(r'(;|' + str(NL) + ')')
 
 
 def parse_content_type(text):
@@ -145,6 +153,9 @@ class StreamContent(object):
     def __iter__(self):
         return self
 
+    def __next__(self):
+        return self.next()
+
     def next(self):
         """Read a byte from stream.
 
@@ -196,7 +207,7 @@ class StreamContent(object):
         assert n != 0
         buff = ''
         # iter(int, 1) is a way to create an infinite loop
-        iterator = xrange(n) if n > 0 else iter(int, 1)
+        iterator = range(n) if n > 0 else iter(int, 1)
         for i in iterator:
             try:
                 c = next(self)
@@ -224,6 +235,9 @@ class StreamIO(object):
 
     def __iter__(self):
         return self
+
+    def __next__(self):
+        return self.next()
 
     def next(self):
         return self.readline()
@@ -329,7 +343,7 @@ class MIMEStreamer(object):
                 # the current part
                 log.debug('End headers %r', headers)
                 headers = HeaderParser().parsestr(''.join(headers))
-                log.debug('Parsed headers %r', headers.items())
+                log.debug('Parsed headers %r', list(headers.items()))
 
                 part = Part(headers)
 
