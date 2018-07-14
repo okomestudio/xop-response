@@ -41,14 +41,15 @@ from .exceptions import ParsingError
 log = logging.getLogger(__name__)
 
 
-NL = b'\r\n'
+NL = b'\r\n' if six.PY2 else '\r\n'
 #: byte: The new line used to delimit lines
 
 
-if six.PY2:
-    re_split_content_type = re.compile(r'(;|' + NL + ')')
-else:
-    re_split_content_type = re.compile(r'(;|' + str(NL) + ')')
+re_split_content_type = re.compile(r'(;|' + NL + ')')
+# if six.PY2:
+#     re_split_content_type = re.compile(r'(;|' + NL + ')')
+# else:
+#     re_split_content_type = re.compile(r'(;|' + str(NL) + ')')
 
 
 def parse_content_type(text):
@@ -262,8 +263,9 @@ class StreamIO(object):
             s = self.stream.readline()
             if s == '':
                 break
+            print('ADD ' + line)
             line += s
-
+        print('READ ' + line)
         return line
 
     def rollback_line(self):

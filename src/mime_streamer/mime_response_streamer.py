@@ -27,6 +27,7 @@ import logging
 import re
 from itertools import chain
 
+import six
 # This is just to avoid making `requests` a requirement
 try:
     from requests.exceptions import StreamConsumedError
@@ -59,6 +60,9 @@ class ResponseStreamIO(StreamIO):
         pending = None
         for chunk in self.resp.iter_content(chunk_size=chunk_size,
                                             decode_unicode=decode_unicode):
+            if six.PY3:
+                chunk = chunk.decode('utf-8')
+
             if pending is not None:
                 chunk = pending + chunk
 
