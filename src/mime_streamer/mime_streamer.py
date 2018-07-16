@@ -41,15 +41,15 @@ from .exceptions import ParsingError
 log = logging.getLogger(__name__)
 
 
-NL = b'\r\n' if six.PY2 else '\r\n'
+NL = b'\r\n' if six.PY2 else b'\r\n'
 #: byte: The new line used to delimit lines
 
 
-re_split_content_type = re.compile(r'(;|' + NL + ')')
-# if six.PY2:
-#     re_split_content_type = re.compile(r'(;|' + NL + ')')
-# else:
-#     re_split_content_type = re.compile(r'(;|' + str(NL) + ')')
+# re_split_content_type = re.compile(r'(;|' + NL + ')')
+if six.PY2:
+    re_split_content_type = re.compile(r'(;|' + NL + ')')
+else:
+    re_split_content_type = re.compile(br'(;|' + NL + b')')
 
 
 def parse_content_type(text):
@@ -68,12 +68,12 @@ def parse_content_type(text):
     for item in items:
         item = item.strip()
         try:
-            idx = item.index('=')
+            idx = item.index(b'=')
             k = item[:idx]
             v = item[idx + 1:]
         except Exception:
             continue
-        d[k] = v.strip('"')
+        d[k] = v.strip(b'"')
     return d
 
 
@@ -105,7 +105,7 @@ class Part(object):
         chunk = None
         flushed = 0
         try:
-            while chunk != '':
+            while chunk != b'':
                 chunk = self._content.read(chunk_size)
                 flushed += len(chunk)
         except Exception:
@@ -121,9 +121,14 @@ class Part(object):
         """Get the sentinel string indicating multipart boundary if exists."""
         if 'content-type' in self.headers:
             # Try looking for boundary info in this header
-            pars = parse_content_type(self.headers['content-type'])
-            if pars['mime-type'].startswith('multipart/'):
-                return pars.get('boundary')
+            if six.PY3:
+                pars = parse_content_type(self.headers['content-type'].encode())
+                if pars['mime-type'].startswith(b'multipart/'):
+                    return pars.get('boundary')
+            else:
+                pars = parse_content_type(self.headers['content-type'])
+                if pars['mime-type'].startswith('multipart/'):
+                    return pars.get('boundary')
 
 
 class StreamContent(object):
@@ -140,7 +145,7 @@ class StreamContent(object):
         self._streamer = streamer
 
         # The buffer storing current line
-        self._buff = ''
+        self._buff = b''
 
         # The character position last read from `_buff`
         self._pos = 0
@@ -182,7 +187,7 @@ class StreamContent(object):
                 self._streamer.stream.rollback_line()
                 self._eof_seen = True
                 raise StopIteration
-            elif line == '':
+            elif line == b'':
                 self._eof_seen = True
                 raise StopIteration
 
@@ -206,7 +211,7 @@ class StreamContent(object):
 
         """
         assert n != 0
-        buff = ''
+        buff = b''
         # iter(int, 1) is a way to create an infinite loop
         iterator = range(n) if n > 0 else iter(int, 1)
         for i in iterator:
@@ -256,16 +261,16 @@ class StreamIO(object):
         self._head_of_last_line = self.stream.tell()
 
         line = self.stream.readline()
-        if line == '':
+        if line == b'':
             return line
 
         while not line.endswith(NL):
             s = self.stream.readline()
-            if s == '':
+            if s == b'':
                 break
-            print('ADD ' + line)
+            print(b'ADD ' + line)
             line += s
-        print('READ ' + line)
+        print(b'READ ' + line)
         return line
 
     def rollback_line(self):
@@ -279,7 +284,7 @@ class StreamIO(object):
         """Test if the next line to be read reaches EOF."""
         next_line = self.readline()
         self.rollback_line()
-        return next_line.rstrip() == ''
+        return next_line.rstrip() == b''
 
 
 class MIMEStreamer(object):
@@ -306,7 +311,7 @@ class MIMEStreamer(object):
 
     def _is_boundary(self, line):
         """Test if `line` is a part boundary."""
-        return self._boundary and line.startswith('--' + self._boundary)
+        return self._boundary and line.startswith(b'--' + self._boundary)
 
     @contextmanager
     def get_next_part(self):
@@ -344,7 +349,9 @@ class MIMEStreamer(object):
                 # This empty line separates headers and content in
                 # the current part
                 log.debug('End headers %r', headers)
-                headers = HeaderParser().parsestr(''.join(headers))
+                headers = HeaderParser().parsestr(
+                    ''.join(s.decode('utf-8') for s in headers) if six.PY3
+                    else b''.join(headers))
                 log.debug('Parsed headers %r', list(headers.items()))
 
                 part = Part(headers)
@@ -358,12 +365,12 @@ class MIMEStreamer(object):
                 # Probe the line following the headers/content delimiter
                 if self.stream.reaches_eof():
                     log.debug('EOF detected')
-                    part.content = StringIO('')
+                    part.content = StringIO(b'')
                 else:
                     next_line = self.stream.readline()
                     if self._is_boundary(next_line):
                         log.debug('Content is empty for this part')
-                        part.content = StringIO('')
+                        part.content = StringIO(b'')
                     else:
                         log.debug('Content ready for read')
                         self.stream.rollback_line()

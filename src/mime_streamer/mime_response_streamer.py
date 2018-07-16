@@ -60,8 +60,8 @@ class ResponseStreamIO(StreamIO):
         pending = None
         for chunk in self.resp.iter_content(chunk_size=chunk_size,
                                             decode_unicode=decode_unicode):
-            if six.PY3:
-                chunk = chunk.decode('utf-8')
+            # if six.PY3:
+            #     chunk = chunk.decode('utf-8')
 
             if pending is not None:
                 chunk = pending + chunk
@@ -85,7 +85,7 @@ class ResponseStreamIO(StreamIO):
         try:
             line = next(self._il)
         except (StopIteration, StreamConsumedError):
-            line = ''
+            line = b''
         else:
             self._previous_line = line
         return line
