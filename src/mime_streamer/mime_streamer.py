@@ -30,26 +30,22 @@ from email.parser import HeaderParser
 try:
     from StringIO import StringIO
 except ImportError:
-    from io import StringIO
-
-import six
+    from io import BytesIO as StringIO
 
 from .exceptions import NoPartError
 from .exceptions import ParsingError
+from .utils import ensure_binary
+from .utils import ensure_str
 
 
 log = logging.getLogger(__name__)
 
 
-NL = b'\r\n' if six.PY2 else b'\r\n'
+NL = b'\r\n'
 #: byte: The new line used to delimit lines
 
 
-# re_split_content_type = re.compile(r'(;|' + NL + ')')
-if six.PY2:
-    re_split_content_type = re.compile(r'(;|' + NL + ')')
-else:
-    re_split_content_type = re.compile(br'(;|' + NL + b')')
+re_split_content_type = re.compile(br'(;|' + NL + b')')
 
 
 def parse_content_type(text):
@@ -63,17 +59,17 @@ def parse_content_type(text):
         dict: The parameters parsed out from `content-type`.
 
     """
-    items = re_split_content_type.split(text)
-    d = {'mime-type': items.pop(0).lower()}
+    items = re_split_content_type.split(ensure_binary(text))
+    d = {ensure_str('mime-type'): ensure_str(items.pop(0).lower())}
     for item in items:
         item = item.strip()
         try:
             idx = item.index(b'=')
-            k = item[:idx]
-            v = item[idx + 1:]
+            k = ensure_str(item[:idx])
+            v = ensure_str(item[idx + 1:].strip(b'"'))
         except Exception:
             continue
-        d[k] = v.strip(b'"')
+        d[k] = v
     return d
 
 
@@ -121,14 +117,9 @@ class Part(object):
         """Get the sentinel string indicating multipart boundary if exists."""
         if 'content-type' in self.headers:
             # Try looking for boundary info in this header
-            if six.PY3:
-                pars = parse_content_type(self.headers['content-type'].encode())
-                if pars['mime-type'].startswith(b'multipart/'):
-                    return pars.get('boundary')
-            else:
-                pars = parse_content_type(self.headers['content-type'])
-                if pars['mime-type'].startswith('multipart/'):
-                    return pars.get('boundary')
+            pars = parse_content_type(self.headers['content-type'])
+            if pars['mime-type'].startswith('multipart/'):
+                return pars.get('boundary')
 
 
 class StreamContent(object):
@@ -196,7 +187,7 @@ class StreamContent(object):
         else:
             self._pos += 1
 
-        return self._buff[self._pos]
+        return self._buff[self._pos:self._pos+1]
 
     def read(self, n=-1):
         """Read at most `n` bytes, returned as string.
@@ -268,9 +259,8 @@ class StreamIO(object):
             s = self.stream.readline()
             if s == b'':
                 break
-            print(b'ADD ' + line)
             line += s
-        print(b'READ ' + line)
+
         return line
 
     def rollback_line(self):
@@ -338,7 +328,7 @@ class MIMEStreamer(object):
 
             if part is None:
                 # Still reading headers
-                if line == '':
+                if line == b'':
                     raise ParsingError('EOF while reading headers')
 
                 if line != NL:
@@ -350,8 +340,7 @@ class MIMEStreamer(object):
                 # the current part
                 log.debug('End headers %r', headers)
                 headers = HeaderParser().parsestr(
-                    ''.join(s.decode('utf-8') for s in headers) if six.PY3
-                    else b''.join(headers))
+                    ensure_str(b''.join(headers)))
                 log.debug('Parsed headers %r', list(headers.items()))
 
                 part = Part(headers)
@@ -360,7 +349,7 @@ class MIMEStreamer(object):
                     boundary = part.get_multipart_boundary()
                     if boundary:
                         log.debug('Found boundary from headers: %s', boundary)
-                        self._boundary = boundary
+                        self._boundary = ensure_binary(boundary)
 
                 # Probe the line following the headers/content delimiter
                 if self.stream.reaches_eof():

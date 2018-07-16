@@ -27,7 +27,6 @@ import logging
 import re
 from itertools import chain
 
-import six
 # This is just to avoid making `requests` a requirement
 try:
     from requests.exceptions import StreamConsumedError
@@ -38,9 +37,10 @@ except ImportError:
 
 from .exceptions import InvalidContentType
 from .mime_streamer import MIMEStreamer
-from .mime_streamer import NL
+from .mime_streamer import NL  # noqa
 from .mime_streamer import parse_content_type
 from .mime_streamer import StreamIO
+from .utils import ensure_binary
 
 
 log = logging.getLogger(__name__)
@@ -54,15 +54,12 @@ class ResponseStreamIO(StreamIO):
         self._il = self.iter_lines()
         self._previous_line = None
 
-    _re_newline = re.compile(r'.*(\r\n|\n|\r|\n\r)$')
+    _re_newline = re.compile(br'.*(\r\n|\n|\r|\n\r)$')
 
     def iter_lines(self, chunk_size=ITER_CHUNK_SIZE, decode_unicode=None):
         pending = None
         for chunk in self.resp.iter_content(chunk_size=chunk_size,
                                             decode_unicode=decode_unicode):
-            # if six.PY3:
-            #     chunk = chunk.decode('utf-8')
-
             if pending is not None:
                 chunk = pending + chunk
 
@@ -107,7 +104,7 @@ class MIMEResponseStreamer(MIMEStreamer):
         ct = resp.headers['content-type']
         if ct.lower().startswith('multipart/'):
             ct = parse_content_type(ct)
-            boundary = ct['boundary']
+            boundary = ensure_binary(ct['boundary'])
             self._ct_params = ct
         else:
             boundary = None
@@ -149,7 +146,7 @@ class XOPResponseStreamer(MIMEResponseStreamer):
     def _load_manifest_part(self):
         """Load the first part of application/xop+xml."""
         # Forward to the first boundary line
-        line = ''
+        line = b''
         while not self._is_boundary(line):
             line = self.stream.readline()
 

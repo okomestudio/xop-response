@@ -10,30 +10,27 @@ except ImportError:
 import pytest
 import requests
 import responses
-import six
 
 from mime_streamer import MIMEStreamer
 from mime_streamer import XOPResponseStreamer
 from mime_streamer.exceptions import NoPartError
 from mime_streamer.exceptions import ParsingError
+from mime_streamer.utils import ensure_binary
+from mime_streamer.utils import ensure_text
 
 
 log = logging.getLogger(__name__)
 
 
 def load_raw(resource):
-    if six.PY2:
-        return resource_string(__name__, 'data/' + resource)
-    else:
-        return resource_string(__name__, 'data/' + resource)
-        # return str(resource_string(__name__, 'data/' + resource))
+    return resource_string(__name__, 'data/' + resource)
 
 
 class TestMIMEStreamer(object):
 
     def test_text_html(self):
         raw = load_raw('text_html')
-        parsed = email.message_from_string(raw if six.PY2 else str(raw))
+        parsed = email.message_from_string(ensure_text(raw))
         assert parsed.is_multipart() is False
         body = parsed.get_payload()
 
@@ -44,9 +41,8 @@ class TestMIMEStreamer(object):
             assert 'content-type' in headers
             assert headers['content-type'] == parsed.get('content-type')
             content = part.content.read()
-            assert content == body
+            assert content == ensure_binary(body)
 
-    @pytest.mark.skipif(six.PY3, reason='Python 3 rewrite pending')
     def test_text_html_empty(self):
         raw = load_raw('text_html_empty')
         streamer = MIMEStreamer(StringIO(raw))
@@ -54,7 +50,6 @@ class TestMIMEStreamer(object):
             with streamer.get_next_part():
                 pass
 
-    @pytest.mark.skipif(six.PY3, reason='Python 3 rewrite pending')
     def test_multipart_related_basic(self):
         raw = load_raw('multipart_related_basic')
         streamer = MIMEStreamer(StringIO(raw))
@@ -63,17 +58,17 @@ class TestMIMEStreamer(object):
             headers = part.headers
             assert 'Multipart/Related' in headers['content-type']
             assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
-            assert part.content.read() == ''
+            assert part.content.read() == b''
 
         with streamer.get_next_part() as part:
             assert part.headers['content-id'] == '<950120.aaCC@XIson.com>'
-            assert '10\r\n34\r\n10' in part.content.read()
-            assert '' == part.content.read()
+            assert b'10\r\n34\r\n10' in part.content.read()
+            assert b'' == part.content.read()
 
         with streamer.get_next_part() as part:
             assert part.headers['content-id'] == '<950120.aaCB@XIson.com>'
-            assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
-            assert '' == part.content.read()
+            assert b'gZHVja3MKRSBJIEUgSSB' in part.content.read()
+            assert b'' == part.content.read()
 
         with pytest.raises(NoPartError):
             with streamer.get_next_part() as part:
@@ -101,7 +96,6 @@ def post_url():
 
 class TestXOPResponseStreamer(object):
 
-    @pytest.mark.skipif(six.PY3, reason='Python 3 rewrite pending')
     def test_xop_example(self, post_url):
         resp = requests.post(post_url, stream=True)
         assert resp.status_code == 200
@@ -113,8 +107,8 @@ class TestXOPResponseStreamer(object):
 
         with streamer.get_next_part() as part:
             assert part.headers['content-id'] == '<http://example.org/me.png>'
-            assert part.content.read() == '23580\r\n\r\n'
+            assert part.content.read() == b'23580\r\n\r\n'
 
         with streamer.get_next_part() as part:
             assert part.headers['content-id'] == '<http://example.org/my.hsh>'
-            assert part.content.read() == '7923579\r\n'
+            assert part.content.read() == b'7923579\r\n'
