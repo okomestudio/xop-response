@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # The MIT License (MIT)
-# Copyright (c) 2017 Taro Sato
+# Copyright (c) 2017-2018 Taro Sato
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -29,7 +29,7 @@ from .mime_response_streamer import XOPResponseStreamer  # noqa
 from .mime_streamer import MIMEStreamer  # noqa
 
 
-__version__ = '0.1.1'
+__version__ = '0.2.0.dev0'
 __author__ = 'Taro Sato'
 __author_email__ = 'okomestudio@gmail.com'
 __license__ = 'MIT'
