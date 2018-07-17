@@ -1,10 +1,10 @@
 ---
 version: "3.3"
 services:
-  mime_streamer_test_py37:
+  mime_streamer_test:
     build:
       context: ..
-      dockerfile: ./docker/py37/Dockerfile
+      dockerfile: ./docker/$PYVER/Dockerfile
     command: >
       sh -c "
         pip install -e . &&

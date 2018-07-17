@@ -11,6 +11,31 @@ USAGE
 }
 
 
+# check if stdout is a terminal...
+function setup_colors() {
+  if test -t 1; then
+
+    # see if it supports colors...
+    ncolors=$(tput colors)
+
+    if test -n "$ncolors" && test $ncolors -ge 8; then
+      bold="$(tput bold)"
+      underline="$(tput smul)"
+      standout="$(tput smso)"
+      normal="$(tput sgr0)"
+      black="$(tput setaf 0)"
+      red="$(tput setaf 1)"
+      green="$(tput setaf 2)"
+      yellow="$(tput setaf 3)"
+      blue="$(tput setaf 4)"
+      magenta="$(tput setaf 5)"
+      cyan="$(tput setaf 6)"
+      white="$(tput setaf 7)"
+    fi
+  fi
+}
+
+
 readonly compose=docker/tests.yml
 
 
@@ -27,8 +52,33 @@ function build_images() {
 # tests are run
 function run_tests() {
   export TESTPATH=$1
-  build_images mime_streamer_test_py37
-  docker-compose -f $compose up --abort-on-container-exit
+  export PYVERS="py27 py37"
+
+  local pids=""
+  declare -A pmap
+  
+  for PYVER in $PYVERS ; do
+    export PYVER
+    export COMPOSE_PROJECT_NAME=$PYVER
+    ( build_images mime_streamer_test >> tmp/$PYVER 2>&1 && \
+        docker-compose -f $compose up --abort-on-container-exit >> tmp/$PYVER 2>&1 ) &
+    local pid="$!"
+    pmap["$pid"]=$PYVER
+    pids+=" $pid"
+  done
+
+  setup_colors
+  
+  for pid in $pids ; do
+    local PYVER=${pmap[$pid]}
+    
+    if wait $pid ; then
+      echo "Success $PYVER"
+    else
+      cat tmp/$PYVER
+      echo "${red}Fail ${PYVER}${normal}"
+    fi
+  done
 }
 
 
