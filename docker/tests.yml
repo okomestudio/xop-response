@@ -8,4 +8,8 @@ services:
     command: >
       sh -c "
         pip install -e . &&
-        pytest -vv --cov=src/mime_streamer --cov-report=term-missing ${TESTPATH} "
+        pytest -vv \
+          --cov=src/mime_streamer \
+          --cov-report=term-missing \
+          --log-level=DEBUG \
+          ${TESTPATH} "

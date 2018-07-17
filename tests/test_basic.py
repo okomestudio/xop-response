@@ -35,7 +35,7 @@ class TestMIMEStreamer(object):
         body = parsed.get_payload()
 
         streamer = MIMEStreamer(StringIO(raw))
-        assert False
+
         with streamer.get_next_part() as part:
             headers = part.headers
             assert 'content-type' in headers
