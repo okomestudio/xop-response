@@ -1,18 +1,52 @@
-#!/bin/bash
-#
-# Run tests and report coverage.
-
+#!/usr/bin/env bash
 set -e
 
-opts=(-vv
-      --cov=mime_streamer
-      --cov-report=term-missing)
 
-# Tests to run can be specified explicitly or all tests are run:
-if [[ $# -eq 0 ]]; then
-  opts+=(tests/)
-else
-  opts+=("$@")
-fi
+function usage() {
+  cat <<USAGE >&2
+Usage: tests [-h] [/path/to/test]
+  -h  Show help
+USAGE
+  exit ${1:--1}
+}
 
-pytest "${opts[@]}"
+
+readonly compose=docker/tests.yml
+
+
+# Build images ($@)
+function build_images() {
+  declare -a services=("${@}")
+  docker-compose -f $compose build \
+                 --force-rm \
+                 "${services[@]}"
+}
+
+
+# Tun tests within a specific test file ($1) if given; otherwise all
+# tests are run
+function run_tests() {
+  export TESTPATH=$1
+  build_images mime_streamer_test_py37
+  docker-compose -f $compose up --abort-on-container-exit
+}
+
+
+while getopts "h" opt; do
+  case $opt in
+    h)
+      usage 0
+      ;;
+    \?)
+      usage
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument" >&2
+      exit -1
+      ;;
+  esac
+done
+shift $(($OPTIND - 1))
+
+
+run_tests "${1:-tests/}"

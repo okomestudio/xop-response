@@ -1,0 +1,11 @@
+---
+version: "3.3"
+services:
+  mime_streamer_test_py37:
+    build:
+      context: ..
+      dockerfile: ./docker/py37/Dockerfile
+    command: >
+      sh -c "
+        pip install -e . &&
+        pytest -vv --cov=src/mime_streamer --cov-report=term-missing ${TESTPATH} "
