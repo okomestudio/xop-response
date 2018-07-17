@@ -50,4 +50,3 @@ Note
 The library currently is missing the following features:
 
 - Nested multipart messages
-- Python 3.x
