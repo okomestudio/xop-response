@@ -1,18 +1,151 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# -*- coding: utf-8 -*-
 #
-# Run tests and report coverage.
+# The MIT License (MIT)
+# Copyright (c) 2017-2018 Taro Sato
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 set -e
 
-opts=(-vv
-      --cov=mime_streamer
-      --cov-report=term-missing)
 
-# Tests to run can be specified explicitly or all tests are run:
-if [[ $# -eq 0 ]]; then
-  opts+=(tests/)
-else
-  opts+=("$@")
-fi
+function usage() {
+  cat <<USAGE >&2
+Usage: tests [-h] [-e ENV1,ENV2,...] [/path/to/test]
 
-pytest "${opts[@]}"
+  -e  Environments to test(s)
+  -h  Show help
+
+USAGE
+  exit ${1:--1}
+}
+
+
+# Run clean up actions on process exit
+function on_exit() {
+  if [[ -d "$outputdir" ]]; then
+    rm -rf "$outputdir"
+  fi
+}
+
+trap on_exit EXIT
+
+
+# Set up environment variable for colorizing output
+function setup_colors() {
+  # For checking if STDOUT is a terminal, use:
+  # if test -t 1; then
+  if true ; then
+    # See if it supports colors
+    ncolors=$(tput colors)
+    if test -n "$ncolors" && test $ncolors -ge 8; then
+      bold="$(tput bold)"
+      underline="$(tput smul)"
+      standout="$(tput smso)"
+      normal="$(tput sgr0)"
+      black="$(tput setaf 0)"
+      red="$(tput setaf 1)"
+      green="$(tput setaf 2)"
+      yellow="$(tput setaf 3)"
+      blue="$(tput setaf 4)"
+      magenta="$(tput setaf 5)"
+      cyan="$(tput setaf 6)"
+      white="$(tput setaf 7)"
+    fi
+  fi
+}
+
+
+readonly compose=docker/tests.yml
+readonly outputdir=$(mktemp --tmpdir -d dockertest.XXXXX)
+
+
+# Build images ($@)
+function build_images() {
+  declare -a services=("${@}")
+  docker-compose -f $compose build --force-rm "${services[@]}"
+}
+
+
+# Run tests in a container
+function run_container() {
+  docker-compose -f $compose up --abort-on-container-exit
+}
+
+
+# Tun tests within a specific test file ($1) if given; otherwise all
+# tests are run
+function run_tests() {
+  export TESTPATH=$1
+  local environs=(${2//,/ })
+  declare -A pmap
+
+  setup_colors
+
+  for environ in "${environs[@]}" ; do
+    echo "${cyan}${environ}:${normal} Starting..." >&2
+
+    local outfile="$outputdir/$environ"
+
+    export PYVER=$environ
+    export COMPOSE_PROJECT_NAME=$environ
+    ( build_images mime_streamer_test > $outfile 2>&1 \
+        && run_container >> $outfile 2>&1 ) &
+
+    local pid="$!"
+    pmap["$pid"]=$environ
+  done
+
+  for pid in "${!pmap[@]}" ; do
+    local environ=${pmap[$pid]}
+    if wait $pid ; then
+      echo "${cyan}${environ}:${normal} ${blue}Success${normal}" >&2
+    else
+      cat $outputdir/$environ | sed -e 's/^/'"${cyan}${environ}:${normal}"' /'
+      echo "${cyan}${environ}:${normal} ${red}Failed${normal}" >&2
+    fi
+  done
+}
+
+
+while getopts "e:h" opt; do
+  case $opt in
+    e)
+      envs=$OPTARG
+      ;;
+    h)
+      usage 0
+      ;;
+    \?)
+      usage
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument" >&2
+      exit -1
+      ;;
+  esac
+done
+shift $(($OPTIND - 1))
+
+readonly testpath=${1:-tests/}
+readonly envs=${envs:-py27}
+
+run_tests "$testpath" "$envs"

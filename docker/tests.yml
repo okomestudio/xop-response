@@ -1,0 +1,15 @@
+---
+version: "3.3"
+services:
+  mime_streamer_test:
+    build:
+      context: ..
+      dockerfile: ./docker/$PYVER/Dockerfile
+    command: >
+      sh -c "
+        pip install -e . &&
+        pytest -vv \
+          --cov=src/mime_streamer \
+          --cov-report=term-missing \
+          --log-level=DEBUG \
+          ${TESTPATH} "
