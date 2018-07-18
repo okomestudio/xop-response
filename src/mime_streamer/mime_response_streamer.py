@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""mime_streamer.mime_response_streamer
-=======================================
-"""
 #
 # The MIT License (MIT)
 # Copyright (c) 2017-2018 Taro Sato
@@ -25,6 +22,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""MIME Response Streamer
+=========================
+
+"""
 from __future__ import absolute_import
 import logging
 import re

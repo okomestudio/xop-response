@@ -60,12 +60,9 @@ The library currently is missing the following features:
 - Nested multipart messages
 
 
-API
----
-
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: API
 
    mime_streamer
 

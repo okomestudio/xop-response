@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""mime_streamer.mime_streamer
-==============================
-"""
 #
 # The MIT License (MIT)
 # Copyright (c) 2017-2018 Taro Sato
@@ -25,6 +22,10 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""MIME Streamer
+================
+
+"""
 from __future__ import absolute_import
 import logging
 import re
@@ -45,7 +46,7 @@ log = logging.getLogger(__name__)
 
 
 NL = b'\r\n'
-#: byte: The new line used to delimit lines
+"""byte: The new line byte(s) used to delimit lines"""
 
 
 re_split_content_type = re.compile(br'(;|' + NL + b')')
@@ -286,9 +287,8 @@ class MIMEStreamer(object):
     Args:
         stream (`file`): The `file`-like object that reads from a
             string buffer of content in the MIME format.
+
         boundary (`str`, optional): The MIME part boundary text.
-        line_generator (generator, optional): A generator which takes
-            in `stream` and generates lines.
 
     """
 
