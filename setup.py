@@ -27,9 +27,6 @@ from __future__ import absolute_import
 import codecs
 import os
 import re
-# from glob import glob
-# from os.path import basename
-# from os.path import splitext
 
 from setuptools import find_packages
 from setuptools import setup
@@ -60,13 +57,14 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Utilities'],
     package_dir={'': 'src'},
     packages=find_packages('src'),
-    # py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
-    # include_package_data=True,
-    # packages=['mime_related_streamer'],
     scripts=[],
     url='https://github.com/okomestudio/mime-streamer',
     install_requires=[])
