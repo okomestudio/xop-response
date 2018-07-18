@@ -8,8 +8,7 @@ MIME Streamer
 
 Release v\ |version|
 
-:mod:`mime-streamer` is a Python (2.7) library for stream reading MIME
-content.
+:mod:`mime-streamer` is a library for stream-read MIME content.
      
 :mod:`mime-streamer` is licensed under the `MIT License (MIT)`_.
 
@@ -21,27 +20,27 @@ Basic Usage
 
 .. code-block:: python
 
-    from StringIO import StringIO
+    from io import BytesIO
     from pkg_resources import resource_string            
     from mime_streamer import MIMEStreamer
 
     raw = resource_string('tests', 'data/multipart_related_basic')
 
-    streamer = MIMEStreamer(StringIO(raw))
+    streamer = MIMEStreamer(BytesIO(raw))
 
     with streamer.get_next_part() as part:
         headers = part.headers
         assert 'Multipart/Related' in headers['content-type']
         assert 'start="<950120.aaCC@XIson.com>"' in headers['content-type']
-        assert part.content.read() == ''
+        assert b'' == part.content.read()
 
     with streamer.get_next_part() as part:
-        assert part.headers['content-id'] == '<950120.aaCC@XIson.com>'
-        assert '10\r\n34\r\n10' in part.content.read()
+        assert '<950120.aaCC@XIson.com>' == part.headers['content-id']
+        assert b'10\r\n34\r\n10' in part.content.read()
 
     with streamer.get_next_part() as part:
-        assert part.headers['content-id'] == '<950120.aaCB@XIson.com>'
-        assert 'gZHVja3MKRSBJIEUgSSB' in part.content.read()
+        assert '<950120.aaCB@XIson.com>' == part.headers['content-id']
+        assert b'gZHVja3MKRSBJIEUgSSB' in part.content.read()
 
        
 Installation
@@ -59,18 +58,13 @@ Note
 The library currently is missing the following features:
 
 - Nested multipart messages
-- Python 3.x
 
-
-API
----
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: API
 
    mime_streamer
-   mime_response_streamer
 
 
 Indices and tables

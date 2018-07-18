@@ -146,6 +146,6 @@ done
 shift $(($OPTIND - 1))
 
 readonly testpath=${1:-tests/}
-readonly envs=${envs:-py27}
+readonly envs=${envs:-py27,py37}
 
 run_tests "$testpath" "$envs"

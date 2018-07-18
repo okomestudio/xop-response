@@ -22,25 +22,34 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""MIME Streamer
+================
+
+"""
 from __future__ import absolute_import
 import logging
 import re
 from contextlib import contextmanager
 from email.parser import HeaderParser
-from StringIO import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import BytesIO as StringIO
 
 from .exceptions import NoPartError
 from .exceptions import ParsingError
+from .utils import ensure_binary
+from .utils import ensure_str
 
 
 log = logging.getLogger(__name__)
 
 
 NL = b'\r\n'
-#: byte: The new line used to delimit lines
+"""byte: The new line byte(s) used to delimit lines"""
 
 
-re_split_content_type = re.compile(r'(;|' + NL + ')')
+re_split_content_type = re.compile(br'(;|' + NL + b')')
 
 
 def parse_content_type(text):
@@ -54,17 +63,17 @@ def parse_content_type(text):
         dict: The parameters parsed out from `content-type`.
 
     """
-    items = re_split_content_type.split(text)
-    d = {'mime-type': items.pop(0).lower()}
+    items = re_split_content_type.split(ensure_binary(text))
+    d = {ensure_str('mime-type'): ensure_str(items.pop(0).lower())}
     for item in items:
         item = item.strip()
         try:
-            idx = item.index('=')
-            k = item[:idx]
-            v = item[idx + 1:]
+            idx = item.index(b'=')
+            k = ensure_str(item[:idx])
+            v = ensure_str(item[idx + 1:].strip(b'"'))
         except Exception:
             continue
-        d[k] = v.strip('"')
+        d[k] = v
     return d
 
 
@@ -96,7 +105,7 @@ class Part(object):
         chunk = None
         flushed = 0
         try:
-            while chunk != '':
+            while chunk != b'':
                 chunk = self._content.read(chunk_size)
                 flushed += len(chunk)
         except Exception:
@@ -131,7 +140,7 @@ class StreamContent(object):
         self._streamer = streamer
 
         # The buffer storing current line
-        self._buff = ''
+        self._buff = b''
 
         # The character position last read from `_buff`
         self._pos = 0
@@ -144,6 +153,9 @@ class StreamContent(object):
 
     def __iter__(self):
         return self
+
+    def __next__(self):
+        return self.next()
 
     def next(self):
         """Read a byte from stream.
@@ -170,7 +182,7 @@ class StreamContent(object):
                 self._streamer.stream.rollback_line()
                 self._eof_seen = True
                 raise StopIteration
-            elif line == '':
+            elif line == b'':
                 self._eof_seen = True
                 raise StopIteration
 
@@ -179,7 +191,7 @@ class StreamContent(object):
         else:
             self._pos += 1
 
-        return self._buff[self._pos]
+        return self._buff[self._pos:self._pos+1]
 
     def read(self, n=-1):
         """Read at most `n` bytes, returned as string.
@@ -194,9 +206,9 @@ class StreamContent(object):
 
         """
         assert n != 0
-        buff = ''
+        buff = b''
         # iter(int, 1) is a way to create an infinite loop
-        iterator = xrange(n) if n > 0 else iter(int, 1)
+        iterator = range(n) if n > 0 else iter(int, 1)
         for i in iterator:
             try:
                 c = next(self)
@@ -225,6 +237,9 @@ class StreamIO(object):
     def __iter__(self):
         return self
 
+    def __next__(self):
+        return self.next()
+
     def next(self):
         return self.readline()
 
@@ -241,12 +256,12 @@ class StreamIO(object):
         self._head_of_last_line = self.stream.tell()
 
         line = self.stream.readline()
-        if line == '':
+        if line == b'':
             return line
 
         while not line.endswith(NL):
             s = self.stream.readline()
-            if s == '':
+            if s == b'':
                 break
             line += s
 
@@ -263,7 +278,7 @@ class StreamIO(object):
         """Test if the next line to be read reaches EOF."""
         next_line = self.readline()
         self.rollback_line()
-        return next_line.rstrip() == ''
+        return next_line.rstrip() == b''
 
 
 class MIMEStreamer(object):
@@ -272,9 +287,8 @@ class MIMEStreamer(object):
     Args:
         stream (`file`): The `file`-like object that reads from a
             string buffer of content in the MIME format.
+
         boundary (`str`, optional): The MIME part boundary text.
-        line_generator (generator, optional): A generator which takes
-            in `stream` and generates lines.
 
     """
 
@@ -290,7 +304,7 @@ class MIMEStreamer(object):
 
     def _is_boundary(self, line):
         """Test if `line` is a part boundary."""
-        return self._boundary and line.startswith('--' + self._boundary)
+        return self._boundary and line.startswith(b'--' + self._boundary)
 
     @contextmanager
     def get_next_part(self):
@@ -317,7 +331,7 @@ class MIMEStreamer(object):
 
             if part is None:
                 # Still reading headers
-                if line == '':
+                if line == b'':
                     raise ParsingError('EOF while reading headers')
 
                 if line != NL:
@@ -328,8 +342,9 @@ class MIMEStreamer(object):
                 # This empty line separates headers and content in
                 # the current part
                 log.debug('End headers %r', headers)
-                headers = HeaderParser().parsestr(''.join(headers))
-                log.debug('Parsed headers %r', headers.items())
+                headers = HeaderParser().parsestr(
+                    ensure_str(b''.join(headers)))
+                log.debug('Parsed headers %r', list(headers.items()))
 
                 part = Part(headers)
 
@@ -337,17 +352,17 @@ class MIMEStreamer(object):
                     boundary = part.get_multipart_boundary()
                     if boundary:
                         log.debug('Found boundary from headers: %s', boundary)
-                        self._boundary = boundary
+                        self._boundary = ensure_binary(boundary)
 
                 # Probe the line following the headers/content delimiter
                 if self.stream.reaches_eof():
                     log.debug('EOF detected')
-                    part.content = StringIO('')
+                    part.content = StringIO(b'')
                 else:
                     next_line = self.stream.readline()
                     if self._is_boundary(next_line):
                         log.debug('Content is empty for this part')
-                        part.content = StringIO('')
+                        part.content = StringIO(b'')
                     else:
                         log.debug('Content ready for read')
                         self.stream.rollback_line()

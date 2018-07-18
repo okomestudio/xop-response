@@ -1,4 +1,3 @@
-#!/bin/bash
 # -*- coding: utf-8 -*-
 #
 # The MIT License (MIT)
@@ -23,34 +22,22 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+"""Utilities
+============
 
-# Build Sphinx documentation
+"""
+from __future__ import absolute_import
 
-set -e
+import six
 
-# Install required packages.
-for package in Sphinx; do
-  if ! python -c "import $package" 2> /dev/null; then
-    pip install "$package"
-  fi
-done
 
-# Build docs.
-cd docs
-rm -rf _build
-make html
-cd ..
+def ensure_binary(v):
+    return v.encode() if not isinstance(v, six.binary_type) else v
 
-# If command-line option `-o` is given, try opening the documentation
-# with a browser:
-if [ $# -eq 1 ]; then
-  if [ $1 == "-o" ]; then
-    opener=$(which xdg-open)
-    if [ -z "$opener" ]; then
-      # If `xdg-open` not found, try `open`, but this might not work
-      # if it refers to `openvt`... don't know what happens on OS X.
-      opener=open
-    fi
-    $opener docs/_build/html/index.html
-  fi
-fi
+
+def ensure_str(v):
+    return v.decode() if not isinstance(v, six.string_types) else v
+
+
+def ensure_text(v):
+    return v.decode() if not isinstance(v, six.text_type) else v
