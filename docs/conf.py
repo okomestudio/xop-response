@@ -47,7 +47,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'MIME Streamer'
-copyright = u'2017, Taro Sato'
+copyright = u'2017-2018, Taro Sato'
 author = u'Taro Sato'
 
 # The version info for the project you're documenting, acts as replacement for

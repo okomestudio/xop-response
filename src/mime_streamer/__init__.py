@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-#
+"""mime_streamer
+================
+"""
 # The MIT License (MIT)
 # Copyright (c) 2017-2018 Taro Sato
 #
